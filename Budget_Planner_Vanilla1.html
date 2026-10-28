@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planner Anggaran Kustom</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom Styling Slider & Animations */
+        input[type=range] {
+            accent-color: #2563eb;
+        }
+        .animate-fade {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-12">
+
+    <!-- Header Navigation -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-blue-600 text-white rounded-lg shadow-sm">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="font-bold text-xl text-slate-900 leading-tight">Planner Anggaran Fleksibel</h1>
+                    <p class="text-xs text-slate-500">Kelola & alokasikan keuangan bulanan Anda</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <span id="saveStatus" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 transition-opacity duration-300">
+                    ✓ Tersimpan
+                </span>
+                <button onclick="resetData()" class="px-3 py-1.5 text-xs font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 transition-colors">
+                    Reset Semua
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-6xl mx-auto px-4 mt-8">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- Left Column: Settings & Budget Items -->
+            <div class="lg:col-span-7 space-y-6">
+
+                <!-- Income Card -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <label for="incomeInput" class="block text-sm font-semibold text-slate-700 mb-2">
+                        Total Pendapatan Bulanan (Rp)
+                    </label>
+                    <div class="relative rounded-xl shadow-sm">
+                        <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 font-medium">
+                            Rp
+                        </div>
+                        <input type="number" id="incomeInput" min="0" step="50000" placeholder="0" 
+                            class="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-lg font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                            oninput="updateBudget()">
+                    </div>
+                </div>
+
+                <!-- Expense Items Card -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h2 class="font-bold text-slate-800 text-lg">Pos Pengeluaran</h2>
+                            <p class="text-xs text-slate-500">Sesuaikan alokasi untuk setiap kebutuhan</p>
+                        </div>
+                        <button onclick="openAddModal()" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-xl shadow-sm transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                            Tambah Pos
+                        </button>
+                    </div>
+
+                    <!-- List Container -->
+                    <div id="itemsList" class="space-y-4">
+                        <!-- Dynamic items inserted here via JS -->
+                    </div>
+
+                    <div id="emptyState" class="hidden text-center py-8 border-2 border-dashed border-slate-200 rounded-xl">
+                        <p class="text-slate-400 text-sm">Belum ada pos pengeluaran.</p>
+                        <button onclick="openAddModal()" class="mt-2 text-xs font-semibold text-blue-600 hover:underline">Tambah Kategori Baru</button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Summary & Analytics -->
+            <div class="lg:col-span-5 space-y-6">
+                
+                <!-- Overview Stats Card -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                    <h2 class="font-bold text-slate-800 text-lg mb-2">Ringkasan Keuangan</h2>
+
+                    <div class="p-4 rounded-xl bg-slate-50 border border-slate-100 flex justify-between items-center">
+                        <span class="text-sm font-medium text-slate-600">Total Pendapatan</span>
+                        <span id="summaryIncome" class="font-bold text-slate-800">Rp0</span>
+                    </div>
+
+                    <div class="p-4 rounded-xl bg-rose-50/50 border border-rose-100 flex justify-between items-center">
+                        <span class="text-sm font-medium text-rose-700">Total Pengeluaran</span>
+                        <span id="summaryExpense" class="font-bold text-rose-600">Rp0</span>
+                    </div>
+
+                    <div id="savingsBox" class="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 flex justify-between items-center transition-colors">
+                        <div>
+                            <span id="savingsLabel" class="text-sm font-medium text-emerald-700 block">Sisa / Tabungan</span>
+                            <span id="savingsPercent" class="text-xs text-emerald-600 font-normal">0% dari pendapatan</span>
+                        </div>
+                        <span id="summarySavings" class="font-bold text-emerald-600 text-lg">Rp0</span>
+                    </div>
+                </div>
+
+                <!-- Visual Chart Card -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h3 class="font-bold text-slate-800 text-sm mb-4">Proporsi Anggaran</h3>
+                    <div class="relative w-full max-w-[280px] mx-auto aspect-square flex items-center justify-center">
+                        <canvas id="budgetChart"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Form for Adding New Item -->
+    <div id="itemModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl animate-fade">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-slate-800 text-lg" id="modalTitle">Tambah Pos Pengeluaran</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+
+            <form id="itemForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
+                <input type="hidden" id="editItemId">
+                
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Nama Pos / Kategori</label>
+                    <input type="text" id="itemName" required placeholder="Contoh: Makan Harian, Sewa Kos, Kuota"
+                        class="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Batas Maksimal Anggaran (Rp)</label>
+                    <input type="number" id="itemMax" required min="10000" step="10000" placeholder="500000"
+                        class="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Warna Label</label>
+                    <input type="color" id="itemColor" value="#3b82f6" class="w-full h-10 p-1 border border-slate-200 rounded-xl cursor-pointer">
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl">Batal</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Application Script Logic -->
+    <script>
+        // Preset default data untuk inisialisasi awal jika kosong
+        const DEFAULT_STATE = {
+            income: 2000000,
+            items: [
+                { id: '1', name: 'Makan & Minum', amount: 900000, max: 1500000, color: '#3b82f6' },
+                { id: '2', name: 'Transportasi', amount: 200000, max: 500000, color: '#10b981' },
+                { id: '3', name: 'Internet & Pulsa', amount: 100000, max: 250000, color: '#f59e0b' },
+                { id: '4', name: 'Hiburan & Nongkrong', amount: 150000, max: 400000, color: '#8b5cf6' }
+            ]
+        };
+
+        let state = {
+            income: 0,
+            items: []
+        };
+
+        let chartInstance = null;
+
+        // Utility: Format Angka ke Rupiah
+        function formatRp(value) {
+            return 'Rp' + Number(value || 0).toLocaleString('id-ID');
+        }
+
+        // Load Data dari LocalStorage
+        function loadState() {
+            const saved = localStorage.getItem('custom_budget_planner_data');
+            if (saved) {
+                try {
+                    state = JSON.parse(saved);
+                } catch (e) {
+                    state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+                }
+            } else {
+                state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+            }
+
+            document.getElementById('incomeInput').value = state.income || '';
+            renderItems();
+            updateBudget();
+        }
+
+        // Save Data ke LocalStorage
+        function saveState() {
+            localStorage.setItem('custom_budget_planner_data', JSON.stringify(state));
+            const statusEl = document.getElementById('saveStatus');
+            statusEl.classList.remove('opacity-0');
+            setTimeout(() => {
+                statusEl.classList.add('opacity-0');
+            }, 1500);
+        }
+
+        // Render Daftar Pos Pengeluaran ke DOM
+        function renderItems() {
+            const container = document.getElementById('itemsList');
+            const emptyState = document.getElementById('emptyState');
+            container.innerHTML = '';
+
+            if (state.items.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            state.items.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 hover:border-slate-300 transition-colors animate-fade';
+                card.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="w-3.5 h-3.5 rounded-full inline-block" style="background-color: ${item.color}"></span>
+                            <span class="font-semibold text-slate-800 text-sm">${item.name}</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs font-bold text-slate-700" id="val-${item.id}">${formatRp(item.amount)}</span>
+                            <button onclick="openEditModal('${item.id}')" class="p-1 text-slate-400 hover:text-blue-600 rounded">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                            </button>
+                            <button onclick="deleteItem('${item.id}')" class="p-1 text-slate-400 hover:text-rose-600 rounded">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <input type="range" min="0" max="${item.max}" step="5000" value="${item.amount}"
+                            class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                            oninput="onSliderChange('${item.id}', this.value)">
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Handler Slider Berubah
+        function onSliderChange(id, value) {
+            const item = state.items.find(i => i.id === id);
+            if (item) {
+                item.amount = Number(value);
+                document.getElementById(`val-${id}`).innerText = formatRp(item.amount);
+                updateBudget();
+            }
+        }
+
+        // Kalkulasi & Update Ringkasan Keuangan
+        function updateBudget() {
+            const incomeInput = document.getElementById('incomeInput');
+            state.income = Number(incomeInput.value) || 0;
+
+            const totalExpense = state.items.reduce((acc, curr) => acc + curr.amount, 0);
+            const savings = state.income - totalExpense;
+            const savingsPercent = state.income > 0 ? ((savings / state.income) * 100).toFixed(1) : 0;
+
+            // DOM Updates
+            document.getElementById('summaryIncome').innerText = formatRp(state.income);
+            document.getElementById('summaryExpense').innerText = formatRp(totalExpense);
+            
+            const savingsEl = document.getElementById('summarySavings');
+            const savingsBox = document.getElementById('savingsBox');
+            const savingsLabel = document.getElementById('savingsLabel');
+            const savingsPercentEl = document.getElementById('savingsPercent');
+
+            savingsEl.innerText = formatRp(savings);
+            savingsPercentEl.innerText = `${savingsPercent}% dari pendapatan`;
+
+            if (savings < 0) {
+                savingsBox.className = "p-4 rounded-xl bg-rose-100/70 border border-rose-300 flex justify-between items-center";
+                savingsLabel.className = "text-sm font-medium text-rose-800 block";
+                savingsLabel.innerText = "Defisit / Defisit Anggaran";
+                savingsEl.className = "font-bold text-rose-700 text-lg";
+                savingsPercentEl.className = "text-xs text-rose-600 font-normal";
+            } else {
+                savingsBox.className = "p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 flex justify-between items-center";
+                savingsLabel.className = "text-sm font-medium text-emerald-700 block";
+                savingsLabel.innerText = "Sisa / Tabungan";
+                savingsEl.className = "font-bold text-emerald-600 text-lg";
+                savingsPercentEl.className = "text-xs text-emerald-600 font-normal";
+            }
+
+            saveState();
+            updateChart(totalExpense, savings);
+        }
+
+        // Update / Render Doughnut Chart
+        function updateChart(totalExpense, savings) {
+            const ctx = document.getElementById('budgetChart').getContext('2d');
+            
+            const labels = state.items.map(i => i.name);
+            const data = state.items.map(i => i.amount);
+            const colors = state.items.map(i => i.color);
+
+            if (savings > 0) {
+                labels.push('Tabungan / Sisa');
+                data.push(savings);
+                colors.push('#cbd5e1'); // Neutral gray color for tabungan
+            }
+
+            if (chartInstance) {
+                chartInstance.data.labels = labels;
+                chartInstance.data.datasets[0].data = data;
+                chartInstance.data.datasets[0].backgroundColor = colors;
+                chartInstance.update();
+            } else {
+                chartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: data,
+                            backgroundColor: colors,
+                            borderWidth: 2,
+                            borderColor: '#ffffff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { font: { family: 'Inter', size: 11 }, boxWidth: 12 }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const val = context.parsed || 0;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+                                        return ` ${context.label}: ${formatRp(val)} (${pct}%)`;
+                                    }
+                                }
+                            }
+                        },
+                        cutout: '70%'
+                    }
+                });
+            }
+        }
+
+        // Modals & Form Operations
+        function openAddModal() {
+            document.getElementById('modalTitle').innerText = 'Tambah Pos Pengeluaran';
+            document.getElementById('editItemId').value = '';
+            document.getElementById('itemName').value = '';
+            document.getElementById('itemMax').value = '';
+            document.getElementById('itemColor').value = '#' + Math.floor(Math.random()*16777215).toString(16);
+            document.getElementById('itemModal').classList.remove('hidden');
+        }
+
+        function openEditModal(id) {
+            const item = state.items.find(i => i.id === id);
+            if (!item) return;
+
+            document.getElementById('modalTitle').innerText = 'Edit Pos Pengeluaran';
+            document.getElementById('editItemId').value = item.id;
+            document.getElementById('itemName').value = item.name;
+            document.getElementById('itemMax').value = item.max;
+            document.getElementById('itemColor').value = item.color;
+            document.getElementById('itemModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('itemModal').classList.add('hidden');
+        }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            const editId = document.getElementById('editItemId').value;
+            const name = document.getElementById('itemName').value.trim();
+            const max = Number(document.getElementById('itemMax').value);
+            const color = document.getElementById('itemColor').value;
+
+            if (editId) {
+                // Edit
+                const item = state.items.find(i => i.id === editId);
+                if (item) {
+                    item.name = name;
+                    item.max = max;
+                    item.color = color;
+                    if (item.amount > max) item.amount = max;
+                }
+            } else {
+                // Add New
+                const newItem = {
+                    id: Date.now().toString(),
+                    name: name,
+                    amount: Math.round(max / 2),
+                    max: max,
+                    color: color
+                };
+                state.items.push(newItem);
+            }
+
+            closeModal();
+            renderItems();
+            updateBudget();
+        }
+
+        function deleteItem(id) {
+            state.items = state.items.filter(i => i.id !== id);
+            renderItems();
+            updateBudget();
+        }
+
+        function resetData() {
+            localStorage.removeItem('custom_budget_planner_data');
+            loadState();
+        }
+
+        // Inisialisasi saat halaman selesai diproses
+        window.onload = function() {
+            loadState();
+        };
+    </script>
+</body>
+</html>
