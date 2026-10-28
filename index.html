@@ -29,6 +29,14 @@
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen pb-12">
 
+    <!-- Header Banner Shared Mode -->
+    <div id="sharedBanner" class="hidden bg-amber-500 text-white px-4 py-3 shadow-md text-center text-sm font-medium">
+        <span>👀 Anda sedang melihat <b>Anggaran yang Dibagikan</b> kepada Anda.</span>
+        <button onclick="saveSharedToLocal()" class="ml-3 bg-white text-amber-600 px-3 py-1 rounded-md text-xs font-semibold hover:bg-amber-50 transition">
+            Simpan ke Anggaran Saya
+        </button>
+    </div>
+
     <!-- Header Navigation -->
     <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div class="max-w-6xl mx-auto px-4 py-4 flex flex-wrap justify-between items-center gap-4">
@@ -45,10 +53,14 @@
             </div>
 
             <div class="flex items-center gap-3">
-                <span id="saveStatus" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 transition-opacity duration-300">
+                <span id="saveStatus" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 transition-opacity duration-300 opacity-0">
                     ✓ Tersimpan
                 </span>
-                <button onclick="resetData()" class="px-3 py-1.5 text-xs font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 transition-colors">
+                <button onclick="shareBudgetLink()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg border border-emerald-200 transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                    Bagikan Link
+                </button>
+                <button id="resetBtn" onclick="resetData()" class="px-3 py-1.5 text-xs font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 transition-colors">
                     Reset Semua
                 </button>
             </div>
@@ -181,7 +193,6 @@
 
     <!-- Application Script Logic -->
     <script>
-        // Preset default data untuk inisialisasi awal jika kosong
         const DEFAULT_STATE = {
             income: 2000000,
             items: [
@@ -198,23 +209,28 @@
         };
 
         let chartInstance = null;
+        let isResetConfirming = false;
+        let resetTimeout = null;
 
-        // Utility: Format Angka ke Rupiah
         function formatRp(value) {
             return 'Rp' + Number(value || 0).toLocaleString('id-ID');
         }
 
-        // Load Data dari LocalStorage
         function loadState() {
-            const saved = localStorage.getItem('custom_budget_planner_data');
-            if (saved) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sharedDataRaw = urlParams.get('data');
+
+            if (sharedDataRaw) {
                 try {
-                    state = JSON.parse(saved);
+                    const decodedData = JSON.parse(decodeURIComponent(escape(atob(sharedDataRaw))));
+                    state = decodedData;
+                    document.getElementById('sharedBanner').classList.remove('hidden');
                 } catch (e) {
-                    state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+                    console.error("Link tidak valid, memuat data lokal.");
+                    state = loadSavedData();
                 }
             } else {
-                state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+                state = loadSavedData();
             }
 
             document.getElementById('incomeInput').value = state.income || '';
@@ -222,17 +238,32 @@
             updateBudget();
         }
 
-        // Save Data ke LocalStorage
-        function saveState() {
-            localStorage.setItem('custom_budget_planner_data', JSON.stringify(state));
-            const statusEl = document.getElementById('saveStatus');
-            statusEl.classList.remove('opacity-0');
-            setTimeout(() => {
-                statusEl.classList.add('opacity-0');
-            }, 1500);
+        function loadSavedData() {
+            const saved = localStorage.getItem('custom_budget_planner_data');
+            if (saved) {
+                try { return JSON.parse(saved); } catch (e) { return JSON.parse(JSON.stringify(DEFAULT_STATE)); }
+            }
+            return JSON.parse(JSON.stringify(DEFAULT_STATE));
         }
 
-        // Render Daftar Pos Pengeluaran ke DOM
+        function saveState() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (!urlParams.get('data')) {
+                localStorage.setItem('custom_budget_planner_data', JSON.stringify(state));
+                const statusEl = document.getElementById('saveStatus');
+                statusEl.classList.remove('opacity-0');
+                setTimeout(() => {
+                    statusEl.classList.add('opacity-0');
+                }, 1500);
+            }
+        }
+
+        function saveSharedToLocal() {
+            localStorage.setItem('custom_budget_planner_data', JSON.stringify(state));
+            alert("Anggaran ini berhasil disimpan sebagai Anggaran Utama Anda!");
+            window.location.href = window.location.pathname;
+        }
+
         function renderItems() {
             const container = document.getElementById('itemsList');
             const emptyState = document.getElementById('emptyState');
@@ -274,7 +305,6 @@
             });
         }
 
-        // Handler Slider Berubah
         function onSliderChange(id, value) {
             const item = state.items.find(i => i.id === id);
             if (item) {
@@ -284,7 +314,6 @@
             }
         }
 
-        // Kalkulasi & Update Ringkasan Keuangan
         function updateBudget() {
             const incomeInput = document.getElementById('incomeInput');
             state.income = Number(incomeInput.value) || 0;
@@ -293,7 +322,6 @@
             const savings = state.income - totalExpense;
             const savingsPercent = state.income > 0 ? ((savings / state.income) * 100).toFixed(1) : 0;
 
-            // DOM Updates
             document.getElementById('summaryIncome').innerText = formatRp(state.income);
             document.getElementById('summaryExpense').innerText = formatRp(totalExpense);
             
@@ -323,7 +351,6 @@
             updateChart(totalExpense, savings);
         }
 
-        // Update / Render Doughnut Chart
         function updateChart(totalExpense, savings) {
             const ctx = document.getElementById('budgetChart').getContext('2d');
             
@@ -334,7 +361,7 @@
             if (savings > 0) {
                 labels.push('Tabungan / Sisa');
                 data.push(savings);
-                colors.push('#cbd5e1'); // Neutral gray color for tabungan
+                colors.push('#cbd5e1');
             }
 
             if (chartInstance) {
@@ -379,7 +406,6 @@
             }
         }
 
-        // Modals & Form Operations
         function openAddModal() {
             document.getElementById('modalTitle').innerText = 'Tambah Pos Pengeluaran';
             document.getElementById('editItemId').value = '';
@@ -413,7 +439,6 @@
             const color = document.getElementById('itemColor').value;
 
             if (editId) {
-                // Edit
                 const item = state.items.find(i => i.id === editId);
                 if (item) {
                     item.name = name;
@@ -422,7 +447,6 @@
                     if (item.amount > max) item.amount = max;
                 }
             } else {
-                // Add New
                 const newItem = {
                     id: Date.now().toString(),
                     name: name,
@@ -445,11 +469,45 @@
         }
 
         function resetData() {
-            localStorage.removeItem('custom_budget_planner_data');
-            loadState();
+            const btn = document.getElementById('resetBtn');
+
+            if (!isResetConfirming) {
+                isResetConfirming = true;
+                btn.innerText = 'Yakin?';
+                btn.className = 'px-3 py-1.5 text-xs font-semibold bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors';
+
+                resetTimeout = setTimeout(() => {
+                    cancelResetConfirm();
+                }, 3000);
+            } else {
+                clearTimeout(resetTimeout);
+                localStorage.removeItem('custom_budget_planner_data');
+                loadState();
+                cancelResetConfirm();
+            }
         }
 
-        // Inisialisasi saat halaman selesai diproses
+        function cancelResetConfirm() {
+            isResetConfirming = false;
+            const btn = document.getElementById('resetBtn');
+            if (btn) {
+                btn.innerText = 'Reset Semua';
+                btn.className = 'px-3 py-1.5 text-xs font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 transition-colors';
+            }
+        }
+
+        function shareBudgetLink() {
+            const jsonString = JSON.stringify(state);
+            const base64Data = btoa(unescape(encodeURIComponent(jsonString)));
+            const shareableUrl = `${window.location.origin}${window.location.pathname}?data=${base64Data}`;
+
+            navigator.clipboard.writeText(shareableUrl).then(() => {
+                alert("Link Anggaran berhasil disalin ke clipboard!\n\nAnda bisa langsung mengirimkan link ini ke WhatsApp atau media sosial teman Anda.");
+            }).catch(err => {
+                prompt("Salin link berikut secara manual:", shareableUrl);
+            });
+        }
+
         window.onload = function() {
             loadState();
         };
